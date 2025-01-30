@@ -4,24 +4,50 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 pine_api_key = os.getenv("PINE_API_KEY")
-pinecone.init(api_key=pine_api_key, environment="us-west1-gcp")
+pc = pinecone.Pinecone(api_key=pine_api_key)
 
 # Initialize the SentenceTransformer model
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
 
+
+def determine_text_key(query):
+    """Determine which text_key to use based on the query."""
+    query = query.lower()
+    if "title" in query:
+        return "title"
+    elif "author" in query:
+        return "authors"
+    elif "organization" in query:
+        return "organizations"
+    elif "email" in query:
+        return "emails"
+    elif "summary" in query:
+        return "content"
+    else:
+        return "full_content"
+    
 def get_embedding(text):
     """Generate embeddings using SentenceTransformer."""
     return embedding_model.encode(text, convert_to_tensor=False)
 
-def process_and_store_embeddings(documents, section_titles):
+def process_and_store_embeddings(documents):
     """Process documents and store embeddings in Pinecone."""
     index_name = "document-embeddings"  
     dimension = 384  # Dimension of the 'all-MiniLM-L6-v2' model
 
-    # Create the Pinecone index if it doesn't exist
-    if index_name not in pinecone.list_indexes():
-        pinecone.create_index(index_name, dimension=dimension)
-    index = pinecone.Index(index_name)
+    if index_name not in pc.list_indexes().names():
+        pc.create_index(
+            name=index_name,
+            dimension=dimension,
+            metric="cosine",  
+            spec=pinecone.ServerlessSpec(
+                cloud="aws",  
+                region="us-east-1" 
+            )
+        )
+
+    # Connect to the index
+    index = pc.Index(index_name)
 
     all_embeddings = []
     metadata = []
@@ -38,17 +64,17 @@ def process_and_store_embeddings(documents, section_titles):
         full_doc_embedding = get_embedding(document.get("full_content", ""))
 
         # Store embeddings and metadata
-        all_embeddings.extend([title_embedding, author_embedding, org_embedding, email_embedding, content_embedding, full_doc_embedding])
+        all_embeddings.extend([title_embedding, author_embedding, org_embedding, email_embedding,content_embedding, full_doc_embedding])
         metadata.extend([
-            {"type": "title", "document_id": document_id},
-            {"type": "authors", "document_id": document_id},
-            {"type": "organizations", "document_id": document_id},
-            {"type": "emails", "document_id": document_id},
-            {"type": "content", "document_id": document_id},
-            {"type": "full_document", "document_id": document_id}
+            {"type": "title", "document_id": document_id, "text": document.get("title", "")},
+            {"type": "authors", "document_id": document_id, "text": document.get("authors", "")},
+            {"type": "organizations", "document_id": document_id, "text": document.get("organizations", "")},
+            {"type": "emails", "document_id": document_id, "text": document.get("emails", "")},
+            {"type": "content", "document_id": document_id, "text": document.get("content", "")},
+            {"type": "full_document", "document_id": document_id, "text": document.get("full_content", "")}
         ])
 
     # Upsert the embeddings into Pinecone
-    index.upsert(vectors=[(str(i), embedding.tolist(), metadata[i]) for i, embedding in enumerate(all_embeddings)])
+    index.upsert(vectors=[(f"{document_id}_{i}", embedding.tolist(), metadata[i]) for i, embedding in enumerate(all_embeddings)])
 
     return index

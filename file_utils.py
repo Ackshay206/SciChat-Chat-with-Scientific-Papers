@@ -19,6 +19,7 @@ def parse_and_extract(file_path):
     extracted_info = {
         "title": text.split("\n")[0],  # First line is typically the title
         "emails": [word for word in text.split() if "@" in word and "." in word],
+        "content":text,
     }
     return extracted_info, documents
 
