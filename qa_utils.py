@@ -53,8 +53,8 @@ def create_qa_chain(index):
         USER QUESTION: {question}
 
         Guidelines for your response:
-        1. Focus only on information explicitly stated in the provided context
-        2. Cite specific methodologies, results, and conclusions from the paper
+        1. Focus only on information explicitly stated in the provided question by the user.
+        2. Avoid making assumptions or inferences not supported by the provided context.
         3. Maintain scientific terminology used in the original paper
         4. If asked about authors, titles, or affiliations, provide that information precisely and breifly, 
         don't elaborate on it, just give the reuired  answer like author names , organizations etc.
