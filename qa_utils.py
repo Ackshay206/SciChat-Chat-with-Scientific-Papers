@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
-pine_api_key = os.getenv("PINE_API_KEY")
+pine_api_key = os.getenv("PINECONE_API_KEY")
 pine_env = os.getenv("PINECONE_ENVIRONMENT")
 openai_key = os.getenv("OPENAI_API_KEY")
 
