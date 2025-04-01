@@ -13,10 +13,11 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 pine_api_key = os.getenv("PINECONE_API_KEY")
+pine_env = os.getenv("PINECONE_ENVIRONMENT")
 
 # Initialize Pinecone
 try:
-    pc = pinecone.Pinecone(api_key=pine_api_key)
+    pc = pinecone.Pinecone(api_key=pine_api_key, environment=pine_env)
     logger.info("Pinecone initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize Pinecone: {str(e)}")

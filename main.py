@@ -118,7 +118,7 @@ def main():
     # Initialize Pinecone
     try:
         logger.info("Connecting to Pinecone...")
-        pc = pinecone.Pinecone(api_key=pine_api_key, environment=pine_env)
+        pc = pinecone.init(api_key=pine_api_key, environment=pine_env)
     except Exception as e:
         logger.error(f"Failed to initialize Pinecone: {str(e)}")
         return

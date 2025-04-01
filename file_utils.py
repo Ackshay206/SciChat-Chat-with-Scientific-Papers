@@ -1,14 +1,71 @@
 from langchain_community.document_loaders import PyPDFLoader
 import spacy
 import pdfplumber
+import fitz  # PyMuPDF
 import re
 import os
 import argparse
 import json
-from typing import Tuple, Dict, List, Any
+from typing import Tuple, Dict, List, Any, Set
 
 # Load spaCy NER model
 nlp = spacy.load('en_core_web_sm')
+
+def extract_bold_text_from_first_lines(file_path: str, num_lines: int = 3) -> List[str]:
+    """
+    Extract bold text specifically from the first few lines of the first page.
+    
+    Args:
+        file_path: Path to the PDF file
+        num_lines: Number of lines to check (default: 3)
+        
+    Returns:
+        List of strings containing bold text
+    """
+    bold_texts = []
+    
+    try:
+        # Use PyMuPDF (fitz) for more robust font detection
+        doc = fitz.open(file_path)
+        if len(doc) > 0:
+            page = doc[0]  # First page
+            
+            # Get text blocks with line details
+            blocks = page.get_text("dict")["blocks"]
+            
+            line_count = 0
+            for block in blocks:
+                if "lines" in block:
+                    for line in block["lines"]:
+                        # Process only the first N lines
+                        if line_count >= num_lines:
+                            break
+                            
+                        bold_in_line = []
+                        for span in line["spans"]:
+                            # Check for bold text:
+                            # 1. Font name contains "Bold"
+                            # 2. Font has flags indicating bold (2^4 = 16 is bold bit)
+                            is_bold = ("Bold" in span["font"] or 
+                                       "bold" in span["font"].lower() or 
+                                       (span["flags"] & 16 != 0))
+                            
+                            if is_bold:
+                                bold_in_line.append(span["text"])
+                            
+                        if bold_in_line:
+                            bold_texts.append(" ".join(bold_in_line))
+                            
+                        line_count += 1
+                        
+                    if line_count >= num_lines:
+                        break
+                        
+    
+    except Exception as e:
+        print(f"Error extracting bold text: {str(e)}")
+    
+    return bold_texts
 
 def parse_and_extract(file_path: str) -> Tuple[Dict[str, Any], List]:
     """
@@ -31,17 +88,33 @@ def parse_and_extract(file_path: str) -> Tuple[Dict[str, Any], List]:
     # Extract text from the document
     text = " ".join([doc.page_content for doc in documents])
     
-    # Extract title more intelligently - usually first few lines of first page
+    # Try to extract bold text from the first 3 lines to identify the title
+    bold_texts = extract_bold_text_from_first_lines(file_path, num_lines=3)
+    
+    # Extract title more intelligently
     title = ""
-    if documents and len(documents) > 0:
+    
+    # First try: Look for bold text in the first 3 lines
+    if bold_texts:
+        # Check if any bold text looks like a title (substantial length, no metadata markers)
+        for bold_text in bold_texts:
+            if len(bold_text) > 10 and not any(x in bold_text.lower() for x in 
+                                             ['abstract', 'introduction', 'university', '@', 'journal']):
+                title = bold_text
+                break
+    
+    # Second try: Use the first few lines approach (fallback)
+    if not title and documents and len(documents) > 0:
         first_page_lines = documents[0].page_content.split('\n')
         # Usually title is in the first 5 lines and doesn't have common metadata markers
         for line in first_page_lines[:5]:
             line = line.strip()
-            if line and len(line) > 10 and not any(x in line.lower() for x in ['abstract', 'introduction', 'university', '@']):
+            if line and len(line) > 10 and not any(x in line.lower() for x in 
+                                                ['abstract', 'introduction', 'university', '@']):
                 title = line
                 break
     
+    # Last resort fallback
     if not title and len(first_page_lines) > 0:
         title = first_page_lines[0]  # Fallback to first line
     
@@ -71,7 +144,8 @@ def parse_and_extract(file_path: str) -> Tuple[Dict[str, Any], List]:
         "title": title,
         "emails": emails,
         "content": text,
-        "abstract": abstract
+        "abstract": abstract,
+        "bold_text_in_first_lines": bold_texts
     }
     
     return extracted_info, documents
@@ -276,5 +350,3 @@ def extract_authors_and_organizations(file_path: str) -> Tuple[List[str], List[s
     print(f"DEBUG - Final organizations: {filtered_orgs}")
     
     return formatted_authors, filtered_orgs
-
-

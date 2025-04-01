@@ -25,7 +25,7 @@ embedding = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L
 
 # Initialize Pinecone
 try:
-    pc = pinecone.Pinecone(api_key=pine_api_key, environment=pine_env)
+    pine_env = os.getenv("PINECONE_ENVIRONMENT")
     logger.info("Pinecone initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize Pinecone: {str(e)}")
@@ -48,7 +48,8 @@ def create_qa_chain(index):
         CONTEXT INFORMATION:
         {context}
 
-        Given the above information from a scientific paper, please answer the following question with precision and academic rigor.
+        Given the above information from a scientific paper, please answer the following question with precision and academic rigor. Don't 
+        Hallucinate take information only from the context provided and the Paper to answer the questions precisely.
 
         USER QUESTION: {question}
 
